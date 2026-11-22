@@ -538,15 +538,15 @@
                     </div>
                 </div>
 
-                <!-- Khung ảnh Polaroid camera xịn xò (Live Stream MJPEG siêu tốc góc rộng Full HD) -->
+                <!-- Khung ảnh camera (Live Stream MJPEG siêu tốc - KHÔNG CHỮ ĐÈ MÀN HÌNH) -->
                 <div
                     class="h-64 sm:h-72 bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-white shadow-inner relative group">
                     <img id="plant-img" src="/api/camera/stream" onerror="this.src='/images/latest.jpg'"
                         class="w-full h-full object-contain transition-all">
-                    <div
-                        class="absolute top-2.5 left-2.5 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                        <span id="live-cam-badge">AI SEGMENTATION (FULL HD 1080p)</span>
+                    <!-- Chỉ giữ chấm tròn trạng thái live, tuyệt đối không có chữ che màn hình camera -->
+                    <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 pointer-events-none">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shadow-sm"></span>
+                        <span id="live-cam-badge" class="hidden"></span>
                     </div>
                 </div>
 
@@ -556,7 +556,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
                             <span>🌿</span>
-                            <span>THỊ GIÁC AI YOLOv8 (6 LỚP TRÁI & LÁ)</span>
+                            <span>THỊ GIÁC AI (6 LỚP TRÁI & LÁ)</span>
                         </div>
                         <span
                             class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-500 text-white animate-pulse">
@@ -589,9 +589,9 @@
                                 <p class="text-[9px] font-bold text-amber-700">Ớt Hỏng</p>
                                 <p id="damaged-chili-val" class="text-base font-black text-amber-700 tracking-tight">0</p>
                             </div>
-                            <!-- Tổng Quả -->
+                            <!-- Tổng Quả: Icon trái ớt thay vì ngôi sao -->
                             <div class="bg-gradient-to-br from-amber-500 to-rose-500 text-white p-1.5 rounded-xl shadow-xs">
-                                <span class="text-sm">⭐</span>
+                                <span class="text-sm">🌶️</span>
                                 <p class="text-[9px] font-extrabold text-amber-100">Tổng Trái</p>
                                 <p id="total-chili-val" class="text-base font-black tracking-tight">0</p>
                             </div>
@@ -611,17 +611,19 @@
                                 <p class="text-[10px] font-bold text-green-700">Lá Xanh Khỏe</p>
                                 <p id="healthy-leaf-val" class="text-lg font-black text-green-700 tracking-tight">0</p>
                             </div>
-                            <!-- Lá Héo Rũ -->
-                            <div class="bg-white/95 p-2 rounded-xl border border-yellow-300 shadow-xs">
-                                <span class="text-base">🍂</span>
-                                <p class="text-[10px] font-bold text-amber-600">Lá Héo Rũ</p>
+                            <!-- Lá Héo Rũ: Icon lá vàng úa -->
+                            <div class="bg-white/95 p-2 rounded-xl border border-amber-300 shadow-xs">
+                                <span class="text-base inline-flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-amber-400 drop-shadow-xs" fill="currentColor" viewBox="0 0 24 24"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66l.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z"/></svg>
+                                </span>
+                                <p class="text-[10px] font-bold text-amber-600">Lá Héo (Vàng)</p>
                                 <p id="wilting-leaf-val" class="text-lg font-black text-amber-600 tracking-tight">0</p>
                             </div>
-                            <!-- Lá Bệnh / Vàng -->
-                            <div class="bg-white/95 p-2 rounded-xl border border-orange-300 shadow-xs">
-                                <span class="text-base">🍁</span>
-                                <p class="text-[10px] font-bold text-orange-600">Lá Bệnh/Vàng</p>
-                                <p id="diseased-leaf-val" class="text-lg font-black text-orange-600 tracking-tight">0</p>
+                            <!-- Lá Bệnh (Đốm đen) -->
+                            <div class="bg-white/95 p-2 rounded-xl border border-rose-300 shadow-xs">
+                                <span class="text-base">🍂</span>
+                                <p class="text-[10px] font-bold text-rose-600">Lá Bệnh (Đốm đen)</p>
+                                <p id="diseased-leaf-val" class="text-lg font-black text-rose-600 tracking-tight">0</p>
                             </div>
                         </div>
                     </div>

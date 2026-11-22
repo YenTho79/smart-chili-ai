@@ -197,6 +197,111 @@ class PlantVisionAnalyzer:
             except Exception:
                 pass
 
+        # ================= 1.5. HỖ TRỢ PHÂN ĐOẠN THỊ GIÁC TRỰC TIẾP NẾU YOLO CHƯA CÓ KẾT QUẢ =================
+        if sum(len(v) for v in detected_objects.values()) == 0:
+            try:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                # Tách tán cây xanh
+                foliage = cv2.inRange(hsv, np.array([32, 45, 35]), np.array([86, 255, 245]))
+                foliage = cv2.morphologyEx(foliage, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+                num_lbl, lbls, st, _ = cv2.connectedComponentsWithStats(foliage)
+                plant_fol = np.zeros((h_img, w_img), dtype=np.uint8)
+                for i in range(1, num_lbl):
+                    if st[i, cv2.CC_STAT_AREA] > 100:
+                        plant_fol[lbls == i] = 255
+                canopy_zone = cv2.dilate(plant_fol, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25)))
+                occ = np.zeros((h_img, w_img), dtype=np.uint8)
+
+                # 1. ot_do (Ớt chín đỏ)
+                m_red = ((hsv[:, :, 0] <= 14) | (hsv[:, :, 0] >= 166)) & (hsv[:, :, 1] >= 55) & (hsv[:, :, 2] >= 40)
+                red_c = cv2.bitwise_and(m_red.astype(np.uint8) * 255, canopy_zone)
+                cnts_r, _ = cv2.findContours(red_c, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for c in sorted(cnts_r, key=cv2.contourArea, reverse=True):
+                    a = cv2.contourArea(c)
+                    if 100 < a < 4000:
+                        bx, by, bw, bh = cv2.boundingRect(c)
+                        hull = cv2.convexHull(c)
+                        sol = a / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
+                        asp = max(float(bw)/bh, float(bh)/bw)
+                        if asp >= 1.5 and sol >= 0.65 and bh < 120 and bw < 120:
+                            detected_objects[0].append({'bbox': (bx, by, bw, bh), 'conf': 0.92, 'poly': [c]})
+                            cv2.drawContours(occ, [c], -1, 255, -1)
+
+                # 2. ot_xanh (Ớt chỉ thiên mọc thẳng đứng)
+                m_lime = cv2.inRange(hsv, np.array([30, 45, 90]), np.array([52, 255, 255]))
+                m_lime = cv2.bitwise_and(m_lime, canopy_zone)
+                m_lime = cv2.bitwise_and(m_lime, cv2.bitwise_not(occ))
+                k_p = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 7))
+                m_lime_cln = cv2.morphologyEx(m_lime, cv2.MORPH_OPEN, k_p)
+                cnts_g, _ = cv2.findContours(m_lime_cln, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for c in sorted(cnts_g, key=cv2.contourArea, reverse=True):
+                    a = cv2.contourArea(c)
+                    if 110 < a < 4000:
+                        bx, by, bw, bh = cv2.boundingRect(c)
+                        hull = cv2.convexHull(c)
+                        sol = a / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
+                        asp = float(bh) / max(1, bw)
+                        if asp >= 1.55 and sol >= 0.68 and bh < 140 and bw < 80:
+                            detected_objects[1].append({'bbox': (bx, by, bw, bh), 'conf': 0.90, 'poly': [c]})
+                            cv2.drawContours(occ, [c], -1, 255, -1)
+
+                # 3. ot_hong (Ớt hỏng/thối đen)
+                dark_r = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, 42]))
+                dark_r = cv2.bitwise_and(dark_r, canopy_zone)
+                dark_r = cv2.bitwise_and(dark_r, cv2.bitwise_not(occ))
+                cnts_b, _ = cv2.findContours(dark_r, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for c in sorted(cnts_b, key=cv2.contourArea, reverse=True):
+                    a = cv2.contourArea(c)
+                    if 90 < a < 2000:
+                        bx, by, bw, bh = cv2.boundingRect(c)
+                        asp = max(float(bw)/bh, float(bh)/bw)
+                        hull = cv2.convexHull(c)
+                        sol = a / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
+                        if asp >= 1.5 and sol >= 0.68 and bh < 80 and bw < 50:
+                            detected_objects[2].append({'bbox': (bx, by, bw, bh), 'conf': 0.85, 'poly': [c]})
+                            cv2.drawContours(occ, [c], -1, 255, -1)
+                            if len(detected_objects[2]) >= 3:
+                                break
+
+                # 4. la_heo (Lá vàng úa)
+                m_ylw = cv2.inRange(hsv, np.array([18, 50, 65]), np.array([33, 255, 255]))
+                m_ylw = cv2.bitwise_and(m_ylw, canopy_zone)
+                m_ylw = cv2.bitwise_and(m_ylw, cv2.bitwise_not(occ))
+                cnts_y, _ = cv2.findContours(m_ylw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for c in sorted(cnts_y, key=cv2.contourArea, reverse=True):
+                    a = cv2.contourArea(c)
+                    if 250 < a < 8000:
+                        bx, by, bw, bh = cv2.boundingRect(c)
+                        asp = max(float(bw)/bh, float(bh)/bw)
+                        hull = cv2.convexHull(c)
+                        sol = a / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
+                        if 1.05 <= asp <= 3.2 and sol >= 0.45:
+                            detected_objects[4].append({'bbox': (bx, by, bw, bh), 'conf': 0.88, 'poly': [c]})
+                            cv2.drawContours(occ, [c], -1, 255, -1)
+
+                # 5. Phiến lá xanh: la_benh (có chấm đen) & la_xanh
+                edg = cv2.dilate(cv2.Canny(gray, 30, 90), cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+                l_split = cv2.bitwise_and(plant_fol, cv2.bitwise_not(edg))
+                l_split = cv2.bitwise_and(l_split, cv2.bitwise_not(occ))
+                cnts_l, _ = cv2.findContours(l_split, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                dark_fol = cv2.bitwise_and(cv2.inRange(hsv, (0, 0, 0), (180, 255, 48)), plant_fol)
+                for c in cnts_l:
+                    a = cv2.contourArea(c)
+                    if 300 < a < 12000:
+                        bx, by, bw, bh = cv2.boundingRect(c)
+                        asp = max(float(bw)/bh, float(bh)/bw)
+                        hull = cv2.convexHull(c)
+                        sol = a / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
+                        if 1.05 <= asp <= 3.2 and sol >= 0.42:
+                            c_m = np.zeros((h_img, w_img), dtype=np.uint8)
+                            cv2.drawContours(c_m, [c], -1, 255, -1)
+                            d_cnt = np.sum(cv2.bitwise_and(dark_fol, c_m) > 0)
+                            cls_target = 5 if d_cnt >= 8 else 3
+                            detected_objects[cls_target].append({'bbox': (bx, by, bw, bh), 'conf': 0.86, 'poly': [c]})
+                            cv2.drawContours(occ, [c], -1, 255, -1)
+            except Exception:
+                pass
+
         # ================= 2. ĐÁNH GIÁ SỨC KHỎE TÁN LÁ TOÀN CẢNH =================
         all_green_mask = cv2.inRange(hsv, np.array([35, 40, 40]), np.array([85, 255, 255]))
         yellow_mask = cv2.inRange(hsv, np.array([15, 50, 50]), np.array([34, 255, 255]))
@@ -229,49 +334,27 @@ class PlantVisionAnalyzer:
         else:
             health = "Binh thuong (Cay khoe, dang ra qua tot)"
 
-        # ================= 3. NẾU TẮT OVERLAY HOẶC CHƯA CÓ MODEL -> TRẢ VỀ CAMERA MỘC SẠCH 100% =================
-        if not self.show_ai_overlay or self.yolo_model is None:
+        # ================= 3. NẾU TẮT OVERLAY -> TRẢ VỀ CAMERA MỘC SẠCH 100% =================
+        if not self.show_ai_overlay:
             return (frame, n_red, n_green, n_rot, n_leaf_healthy, n_leaf_wilt, n_leaf_dis,
                     green_pct, yellow_pct, "Camera truc tiep (Tat overlay)")
 
-        # ================= 4. VẼ PHÂN VÙNG VÀ BẢNG THỐNG KÊ AI YOLOV8 (KHI BẬT) =================
-        # Mặt nạ bán trong suốt cho từng đối tượng
+        # ================= 4. VẼ PHÂN VÙNG AI (KHÔNG CHỮ THEO YÊU CẦU: "trên màn hình đó kh có chữ gì hết") =================
+        # Mặt nạ bán trong suốt cho từng đối tượng nhận diện
         for cls_id, objs in detected_objects.items():
             color = self.CLASS_INFO[cls_id]["color"]
             for obj in objs:
                 for p in obj['poly']:
                     cv2.drawContours(overlay, [p], -1, color, -1)
 
-        annotated = cv2.addWeighted(overlay, 0.42, frame, 0.58, 0)
+        annotated = cv2.addWeighted(overlay, 0.40, frame, 0.60, 0)
 
-        # Vẽ viền và nhãn hiển thị thông tin từng đối tượng
+        # Vẽ đường viền đa giác bám sát mép quả và lá (tuyệt đối KHÔNG chèn chữ, KHÔNG chèn banner đè màn hình)
         for cls_id, objs in detected_objects.items():
-            info = self.CLASS_INFO[cls_id]
-            color = info["color"]
-            label_prefix = info["label"]
-
-            for i, obj in enumerate(objs):
-                x, y, w, h = obj['bbox']
-                conf_pct = int(obj['conf'] * 100)
+            color = self.CLASS_INFO[cls_id]["color"]
+            for obj in objs:
                 for p in obj['poly']:
                     cv2.drawContours(annotated, [p], -1, color, 2)
-                cv2.rectangle(annotated, (x, y), (x+w, y+h), color, 2)
-                
-                label = f"{label_prefix} #{i+1} ({conf_pct}%)"
-                cv2.rectangle(annotated, (x, max(0, y-22)), (x+165, y), color, -1)
-                text_color = (0, 0, 0) if cls_id in [1, 3, 4, 5] else (255, 255, 255)
-                cv2.putText(annotated, label, (x+4, max(15, y-5)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, text_color, 1)
-
-        # Banner trên cùng hiển thị toàn cảnh 6 LỚP
-        cv2.rectangle(annotated, (0, 0), (w_img, 68), (18, 20, 26), -1)
-        if n_total_fruit + n_total_leaf > 0:
-            banner_1 = f"YOLOv8 AI (6 CLASSES) | TRAI: {n_red} do, {n_green} xanh, {n_rot} hong (Tong: {n_total_fruit})"
-            banner_2 = f"LA: {n_leaf_healthy} xanh khoe, {n_leaf_wilt} heo ru, {n_leaf_dis} vang benh | Tan xanh: {green_pct}%"
-        else:
-            banner_1 = "YOLOv8 AI MODEL (ACTIVE) | Dang quet tim trai ot va la tren cay..."
-            banner_2 = f"Tan xanh: {green_pct}% | Che do nhan dien dang hoat dong"
-        cv2.putText(annotated, banner_1, (20, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (50, 230, 255), 2)
-        cv2.putText(annotated, banner_2, (20, 56), cv2.FONT_HERSHEY_SIMPLEX, 0.68, (120, 255, 120), 2)
 
         return (annotated, n_red, n_green, n_rot, n_leaf_healthy, n_leaf_wilt, n_leaf_dis,
                 green_pct, yellow_pct, health)
