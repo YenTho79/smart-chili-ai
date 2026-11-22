@@ -1,0 +1,11 @@
+path: E:/SMART CHILI AI/cay ot/dataset
+train: images/train
+val: images/val
+
+names:
+  0: ot_do
+  1: ot_xanh
+  2: ot_hong
+  3: la_xanh
+  4: la_heo
+  5: la_benh

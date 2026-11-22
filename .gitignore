@@ -1,0 +1,41 @@
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+ENV/
+
+# Temporary storage & camera snapshot dumps (exclude temporary image dumps, keep latest.jpg)
+python/storage/*.jpg
+!python/storage/latest.jpg
+python/storage/crops/
+cay ot/captured_images/
+cay ot/runs/
+runs/
+
+# Base pre-trained models (auto-downloaded by Ultralytics if needed) & backups
+yolov8n.pt
+yolov8n-seg.pt
+cay ot/yolov8n.pt
+python/chili_yolov8_backup.pt
+
+# Dataset label caches
+*.cache
+
+# Scratch / temporary scripts
+python/read_transcript.py
+
+# Database & logs
+*.db
+*.sqlite
+python/smart_chili.db
+*.log
+
+# OS & IDE files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

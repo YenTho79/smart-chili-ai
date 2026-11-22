@@ -1,0 +1,8 @@
+{
+  "soil_dry": 35.0,
+  "soil_wet": 65.0,
+  "temp_fan": 32.0,
+  "rain_delay": 60.0,
+  "ai_conf": 15.0,
+  "yellow_leaf_alert": 15.0
+}

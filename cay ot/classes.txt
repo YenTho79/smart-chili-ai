@@ -1,0 +1,6 @@
+ot_do
+ot_xanh
+ot_hong
+la_xanh
+la_heo
+la_benh
