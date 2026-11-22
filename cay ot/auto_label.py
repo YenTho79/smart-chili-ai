@@ -11,7 +11,7 @@ import numpy as np
 # 2: ot_hong   - Quả ớt hỏng / thối đen hoại tử / cam cháy ở thân cây
 # 3: la_xanh   - Phiến lá xanh khỏe mạnh, không có đốm bệnh
 # 4: la_heo    - Phiến lá héo rũ chúc xuống
-# 5: la_benh   - Phiến lá có đốm đen hoại tử hoặc đốm vàng bệnh
+# 5: la_benh   - Phiến lá có đốm/chấm đen hoại tử hoặc đốm vàng bệnh
 # -------------------------------------------------------------------------
 CLASS_NAMES = ['ot_do', 'ot_xanh', 'ot_hong', 'la_xanh', 'la_heo', 'la_benh']
 
@@ -48,8 +48,8 @@ def contour_to_polygon(cnt, w_img, h_img, max_pts=16, min_pts=4):
 def segment_image(img, is_timeseries=True):
     """
     Phân đoạn thực thể toàn diện cho từng bức ảnh:
-    - Nhận diện đầy đủ toàn bộ trái ớt và phiến lá trên cây.
-    - Loại bỏ 100% nền: Chữ iVCam, vành chậu, dây ni-lông xanh, bàn tay, đất, bàn gỗ, vòi kim loại.
+    - Nhận diện đầy đủ toàn bộ trái ớt (ớt đỏ, ớt xanh chỉ thiên, ớt hỏng) và lá (lá bệnh có chấm đen, lá xanh, lá héo).
+    - Loại bỏ 100% nền: Chữ iVCam, vành chậu, dây ni-lông xanh, bàn tay, đất, bàn gỗ, vòi kim loại, đèn LED nền.
     """
     h_img, w_img = img.shape[:2]
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -63,21 +63,23 @@ def segment_image(img, is_timeseries=True):
         bg_mask[0:170, 0:280] = 255
         # Loại bỏ bàn tay / ngón tay cầm chậu ở góc dưới bên trái
         bg_mask[480:, :280] = 255
-        # Loại bỏ bàn gỗ / nền thiết bị ở góc dưới bên phải
+        # Loại bỏ bàn gỗ / góc bàn ở góc dưới bên phải
         bg_mask[520:, 1050:] = 255
         # Loại bỏ đáy chậu và bàn ở phía dưới
-        bg_mask[580:, :] = 255
+        bg_mask[540:, :] = 255
+        # Loại bỏ thiết bị điện tử / đèn LED ở phía ngoài bên phải
+        bg_mask[:, 950:] = 255
 
-        # Loại bỏ dây ni-lông xanh buộc quanh miệng chậu (vùng y từ 480 đến 580)
-        ribbon_roi = (hsv[480:580, :, 0] >= 38) & (hsv[480:580, :, 0] <= 62) & \
-                     (hsv[480:580, :, 1] >= 45) & (hsv[480:580, :, 1] <= 120) & \
-                     (hsv[480:580, :, 2] >= 45) & (hsv[480:580, :, 2] <= 130)
+        # Loại bỏ dây ni-lông xanh buộc quanh miệng chậu (vùng y từ 480 đến 550)
+        ribbon_roi = (hsv[480:550, :, 0] >= 38) & (hsv[480:550, :, 0] <= 62) & \
+                     (hsv[480:550, :, 1] >= 45) & (hsv[480:550, :, 1] <= 120) & \
+                     (hsv[480:550, :, 2] >= 45) & (hsv[480:550, :, 2] <= 130)
         ribbon = np.zeros((h_img, w_img), dtype=np.uint8)
-        ribbon[480:580, :][ribbon_roi] = 255
+        ribbon[480:550, :][ribbon_roi] = 255
         ribbon = cv2.dilate(ribbon, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)))
         bg_mask[ribbon > 0] = 255
     else:
-        # Ảnh snapshot: loại bỏ nền trắng
+        # Ảnh snapshot: loại bỏ nền trắng và góc phải
         bg_white = cv2.inRange(hsv, np.array([0, 0, 180]), np.array([180, 40, 255]))
         bg_mask = cv2.bitwise_or(bg_mask, bg_white)
         bg_mask[0:280, 750:] = 255
@@ -96,69 +98,46 @@ def segment_image(img, is_timeseries=True):
         if stats[i, cv2.CC_STAT_AREA] > 100:
             plant_foliage[labels == i] = 255
 
-    # Vùng cho phép quả (gần tán lá, không lọt ra nền)
-    fruit_zone = cv2.dilate(plant_foliage, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8, 8)))
-    fruit_zone = cv2.bitwise_and(fruit_zone, cv2.bitwise_not(bg_mask))
+    # Vùng tán cây bao quát cho phép nhận diện quả gắn trên cành
+    plant_canopy_zone = cv2.dilate(plant_foliage, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (30, 30)))
+    plant_canopy_zone = cv2.bitwise_and(plant_canopy_zone, cv2.bitwise_not(bg_mask))
 
     occupied = np.zeros((h_img, w_img), dtype=np.uint8)
     polys = []
 
     # ---------------------------------------------------------
-    # 1. ot_do (Lớp 0: Quả ớt chín đỏ)
+    # 1. ot_do (Lớp 0: Quả ớt chín đỏ - ƯU TIÊN CAO NHẤT)
     # ---------------------------------------------------------
-    m1 = cv2.inRange(hsv, np.array([0, 110, 70]), np.array([10, 255, 255]))
-    m2 = cv2.inRange(hsv, np.array([170, 110, 70]), np.array([180, 255, 255]))
-    red_mask = cv2.bitwise_and(m1 | m2, fruit_zone)
-    cnts_red, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    m_red = ((hsv[:, :, 0] <= 14) | (hsv[:, :, 0] >= 166)) & (hsv[:, :, 1] >= 55) & (hsv[:, :, 2] >= 40)
+    red_in_canopy = cv2.bitwise_and(m_red.astype(np.uint8) * 255, plant_canopy_zone)
+    red_in_canopy = cv2.morphologyEx(red_in_canopy, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+
+    cnts_red, _ = cv2.findContours(red_in_canopy, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for c in sorted(cnts_red, key=cv2.contourArea, reverse=True):
         area = cv2.contourArea(c)
-        if 80 < area < 4000:
+        if 90 < area < 4000:
             bx, by, bw, bh = cv2.boundingRect(c)
-            aspect = max(float(bw)/bh, float(bh)/bw)
-            if aspect >= 1.25 and bh < 110 and bw < 110:
+            aspect = max(float(bw) / bh, float(bh) / bw)
+            if aspect >= 1.20 and bh < 120 and bw < 120 and (by + bh < 535):
                 norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
                 if norm_pts:
                     polys.append((0, norm_pts, pts_pix))
                     cv2.drawContours(occupied, [c], -1, 255, -1)
 
     # ---------------------------------------------------------
-    # 2. ot_hong (Lớp 2: Quả ớt hỏng, thối đen hoặc cam cháy)
-    # ---------------------------------------------------------
-    dark_roi = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, 42]))
-    dark_roi = cv2.bitwise_and(dark_roi, fruit_zone)
-    dark_roi = cv2.bitwise_and(dark_roi, cv2.bitwise_not(occupied))
-    dark_clean = cv2.morphologyEx(dark_roi, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
-    cnts_blk, _ = cv2.findContours(dark_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for c in sorted(cnts_blk, key=cv2.contourArea, reverse=True):
-        area = cv2.contourArea(c)
-        if 90 < area < 2200:
-            bx, by, bw, bh = cv2.boundingRect(c)
-            aspect = max(float(bw)/bh, float(bh)/bw)
-            hull = cv2.convexHull(c)
-            solidity = area / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
-            if aspect >= 1.3 and solidity >= 0.65 and bh < 85 and bw < 65:
-                norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
-                if norm_pts:
-                    polys.append((2, norm_pts, pts_pix))
-                    cv2.drawContours(occupied, [c], -1, 255, -1)
-                    if len([p for p in polys if p[0] == 2]) >= 4:
-                        break
-
-    # ---------------------------------------------------------
-    # 3. ot_xanh (Lớp 1: Toàn bộ ớt chỉ thiên xanh non mọc hướng lên)
+    # 2. ot_xanh (Lớp 1: Toàn bộ ớt chỉ thiên xanh non mọc hướng lên)
     # ---------------------------------------------------------
     m_lime = cv2.inRange(hsv, np.array([30, 42, 95]), np.array([53, 255, 255]))
-    m_lime = cv2.bitwise_and(m_lime, fruit_zone)
+    m_lime = cv2.bitwise_and(m_lime, plant_canopy_zone)
     m_lime = cv2.bitwise_and(m_lime, cv2.bitwise_not(occupied))
     k_vert = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 7))
     m_lime_clean = cv2.morphologyEx(m_lime, cv2.MORPH_OPEN, k_vert)
     cnts_gc, _ = cv2.findContours(m_lime_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    ot_x_c = 0
     for c in sorted(cnts_gc, key=cv2.contourArea, reverse=True):
         area = cv2.contourArea(c)
         if 100 < area < 5000:
             bx, by, bw, bh = cv2.boundingRect(c)
-            aspect = max(float(bh)/bw, float(bw)/bh)
+            aspect = max(float(bh) / bw, float(bw) / bh)
             hull = cv2.convexHull(c)
             solidity = area / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
             if (aspect >= 1.30 or (aspect >= 1.15 and solidity >= 0.70)) and bh < 130 and bw < 130:
@@ -166,8 +145,28 @@ def segment_image(img, is_timeseries=True):
                 if norm_pts:
                     polys.append((1, norm_pts, pts_pix))
                     cv2.drawContours(occupied, [c], -1, 255, -1)
-                    ot_x_c += 1
-                    if ot_x_c >= 25:
+
+    # ---------------------------------------------------------
+    # 3. ot_hong (Lớp 2: Quả ớt hỏng, thối đen hoại tử / cam cháy)
+    # ---------------------------------------------------------
+    dark_roi = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, 42]))
+    dark_roi = cv2.bitwise_and(dark_roi, plant_canopy_zone)
+    dark_roi = cv2.bitwise_and(dark_roi, cv2.bitwise_not(occupied))
+    dark_clean = cv2.morphologyEx(dark_roi, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    cnts_blk, _ = cv2.findContours(dark_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in sorted(cnts_blk, key=cv2.contourArea, reverse=True):
+        area = cv2.contourArea(c)
+        if 90 < area < 2000:
+            bx, by, bw, bh = cv2.boundingRect(c)
+            aspect = max(float(bw) / bh, float(bh) / bw)
+            hull = cv2.convexHull(c)
+            solidity = area / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
+            if aspect >= 1.35 and solidity >= 0.65 and bh < 80 and bw < 60:
+                norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
+                if norm_pts:
+                    polys.append((2, norm_pts, pts_pix))
+                    cv2.drawContours(occupied, [c], -1, 255, -1)
+                    if len([p for p in polys if p[0] == 2]) >= 3:
                         break
 
     # ---------------------------------------------------------
@@ -186,12 +185,12 @@ def segment_image(img, is_timeseries=True):
     leaf_candidates = []
     for c in cnts_leaf:
         area = cv2.contourArea(c)
-        if 350 < area < 12000:
+        if 300 < area < 12000:
             bx, by, bw, bh = cv2.boundingRect(c)
-            aspect = max(float(bw)/bh, float(bh)/bw)
+            aspect = max(float(bw) / bh, float(bh) / bw)
             hull = cv2.convexHull(c)
             solidity = area / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
-            if 1.05 <= aspect <= 3.0 and solidity >= 0.45:
+            if 1.05 <= aspect <= 3.2 and solidity >= 0.42:
                 c_mask = np.zeros((h_img, w_img), dtype=np.uint8)
                 cv2.drawContours(c_mask, [c], -1, 255, -1)
                 dark_in_leaf = cv2.bitwise_and(dark_foliage, c_mask)
@@ -199,25 +198,21 @@ def segment_image(img, is_timeseries=True):
                 leaf_candidates.append((area, c, (bx, by, bw, bh), dark_count))
 
     leaf_candidates.sort(key=lambda x: x[0], reverse=True)
-    dis_count, healthy_count, wilting_count = 0, 0, 0
 
     for area, c, (bx, by, bw, bh), dark_count in leaf_candidates:
         norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
         if not norm_pts:
             continue
-        # Lá có chấm đen là lá bệnh
-        if dark_count >= 14 and dis_count < 15:
+        # Lá có đốm/chấm đen là la_benh
+        if dark_count >= 8:
             polys.append((5, norm_pts, pts_pix))
             cv2.drawContours(occupied, [c], -1, 255, -1)
-            dis_count += 1
-        elif bh > bw * 1.55 and wilting_count < 6:
+        elif bh > bw * 1.55:
             polys.append((4, norm_pts, pts_pix))
             cv2.drawContours(occupied, [c], -1, 255, -1)
-            wilting_count += 1
-        elif dark_count < 6 and healthy_count < 22:
+        else:
             polys.append((3, norm_pts, pts_pix))
             cv2.drawContours(occupied, [c], -1, 255, -1)
-            healthy_count += 1
 
     return polys
 
