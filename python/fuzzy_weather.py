@@ -1,8 +1,13 @@
 import time
 import requests
 import numpy as np
-import skfuzzy as fuzz
-from skfuzzy import control as ctrl
+
+try:
+    import skfuzzy as fuzz
+    from skfuzzy import control as ctrl
+    SKFUZZY_AVAILABLE = True
+except ImportError:
+    SKFUZZY_AVAILABLE = False
 
 class WeatherAndFuzzyEngine:
     def __init__(self, api_key="YOUR_API_KEY", lat=10.9465, lon=106.8340):
@@ -17,38 +22,45 @@ class WeatherAndFuzzyEngine:
         self._build_fuzzy()
 
     def _build_fuzzy(self):
-        soil = ctrl.Antecedent(np.arange(0, 101, 1), 'soil')
-        temp = ctrl.Antecedent(np.arange(15, 46, 1), 'temp')
-        rain = ctrl.Antecedent(np.arange(0, 101, 1), 'rain')
-        water = ctrl.Consequent(np.arange(0, 101, 1), 'water')
+        if not SKFUZZY_AVAILABLE:
+            self.sim = None
+            return
 
-        soil['very_dry'] = fuzz.trapmf(soil.universe, [0, 0, 15, 25])
-        soil['dry']      = fuzz.trimf(soil.universe, [20, 35, 50])
-        soil['moist']    = fuzz.trimf(soil.universe, [45, 60, 75])
-        soil['wet']      = fuzz.trapmf(soil.universe, [70, 85, 100, 100])
+        try:
+            soil = ctrl.Antecedent(np.arange(0, 101, 1), 'soil')
+            temp = ctrl.Antecedent(np.arange(15, 46, 1), 'temp')
+            rain = ctrl.Antecedent(np.arange(0, 101, 1), 'rain')
+            water = ctrl.Consequent(np.arange(0, 101, 1), 'water')
 
-        temp['cool']   = fuzz.trapmf(temp.universe, [15, 15, 22, 26])
-        temp['normal'] = fuzz.trimf(temp.universe, [24, 28, 32])
-        temp['hot']    = fuzz.trapmf(temp.universe, [30, 34, 45, 45])
+            soil['very_dry'] = fuzz.trapmf(soil.universe, [0, 0, 15, 25])
+            soil['dry']      = fuzz.trimf(soil.universe, [20, 35, 50])
+            soil['moist']    = fuzz.trimf(soil.universe, [45, 60, 75])
+            soil['wet']      = fuzz.trapmf(soil.universe, [70, 85, 100, 100])
 
-        rain['low']    = fuzz.trapmf(rain.universe, [0, 0, 20, 40])
-        rain['medium'] = fuzz.trimf(rain.universe, [30, 55, 75])
-        rain['high']   = fuzz.trapmf(rain.universe, [65, 80, 100, 100])
+            temp['cool']   = fuzz.trapmf(temp.universe, [15, 15, 22, 26])
+            temp['normal'] = fuzz.trimf(temp.universe, [24, 28, 32])
+            temp['hot']    = fuzz.trapmf(temp.universe, [30, 34, 45, 45])
 
-        water['none']  = fuzz.trapmf(water.universe, [0, 0, 15, 30])
-        water['delay'] = fuzz.trimf(water.universe, [25, 40, 55])
-        water['low']   = fuzz.trimf(water.universe, [50, 65, 80])
-        water['high']  = fuzz.trapmf(water.universe, [75, 85, 100, 100])
+            rain['low']    = fuzz.trapmf(rain.universe, [0, 0, 20, 40])
+            rain['medium'] = fuzz.trimf(rain.universe, [30, 55, 75])
+            rain['high']   = fuzz.trapmf(rain.universe, [65, 80, 100, 100])
 
-        rules = [
-            ctrl.Rule(soil['very_dry'], water['high']),
-            ctrl.Rule(soil['moist'] | soil['wet'], water['none']),
-            ctrl.Rule(soil['dry'] & temp['hot'] & rain['low'], water['high']),
-            ctrl.Rule(soil['dry'] & (temp['normal'] | temp['cool']) & rain['low'], water['low']),
-            ctrl.Rule(soil['dry'] & rain['medium'], water['low']),
-            ctrl.Rule(soil['dry'] & rain['high'], water['delay'])
-        ]
-        self.sim = ctrl.ControlSystemSimulation(ctrl.ControlSystem(rules))
+            water['none']  = fuzz.trapmf(water.universe, [0, 0, 15, 30])
+            water['delay'] = fuzz.trimf(water.universe, [25, 40, 55])
+            water['low']   = fuzz.trimf(water.universe, [50, 65, 80])
+            water['high']  = fuzz.trapmf(water.universe, [75, 85, 100, 100])
+
+            rules = [
+                ctrl.Rule(soil['very_dry'], water['high']),
+                ctrl.Rule(soil['moist'] | soil['wet'], water['none']),
+                ctrl.Rule(soil['dry'] & temp['hot'] & rain['low'], water['high']),
+                ctrl.Rule(soil['dry'] & (temp['normal'] | temp['cool']) & rain['low'], water['low']),
+                ctrl.Rule(soil['dry'] & rain['medium'], water['low']),
+                ctrl.Rule(soil['dry'] & rain['high'], water['delay'])
+            ]
+            self.sim = ctrl.ControlSystemSimulation(ctrl.ControlSystem(rules))
+        except Exception:
+            self.sim = None
 
     def get_weather(self):
         now = time.time()
@@ -80,14 +92,25 @@ class WeatherAndFuzzyEngine:
         rain_prob, desc, valid = self.get_weather()
         effective_rain = rain_prob if valid else 0.0
 
-        try:
-            self.sim.input['soil'] = np.clip(soil_pct, 0, 100)
-            self.sim.input['temp'] = np.clip(temp_c, 15, 45)
-            self.sim.input['rain'] = np.clip(effective_rain, 0, 100)
-            self.sim.compute()
-            score = float(self.sim.output.get('water', 0.0))
-        except Exception:
-            score = 0.0 if soil_pct >= soil_wet_thresh else (80.0 if soil_pct < soil_dry_thresh else 40.0)
+        if not SKFUZZY_AVAILABLE or self.sim is None:
+            # Fallback mô hình mờ chuẩn tính toán trực tiếp
+            if soil_pct < 20:
+                score = 90.0
+            elif soil_pct <= soil_dry_thresh:
+                score = 80.0 if effective_rain < 40 else 45.0
+            elif soil_pct < soil_wet_thresh:
+                score = 30.0 if effective_rain > 50 else 55.0
+            else:
+                score = 10.0
+        else:
+            try:
+                self.sim.input['soil'] = np.clip(soil_pct, 0, 100)
+                self.sim.input['temp'] = np.clip(temp_c, 15, 45)
+                self.sim.input['rain'] = np.clip(effective_rain, 0, 100)
+                self.sim.compute()
+                score = float(self.sim.output.get('water', 0.0))
+            except Exception:
+                score = 0.0 if soil_pct >= soil_wet_thresh else (80.0 if soil_pct < soil_dry_thresh else 40.0)
 
         # Đánh giá kết hợp ngưỡng tùy chỉnh người dùng và mô hình Fuzzy
         if soil_pct >= soil_wet_thresh:
