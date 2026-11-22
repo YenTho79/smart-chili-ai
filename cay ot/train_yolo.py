@@ -1,3 +1,12 @@
+# ======================================================================================
+# ĐỀ TÀI: HỆ THỐNG VƯỜN ỚT THÔNG MINH - SMART CHILI AI
+# FILE: train_yolo.py
+# VAI TRÒ: HUẤN LUYỆN MÔ HÌNH HỌC SÂU (DEEP LEARNING) YOLOV8 NHẬN DIỆN 6 LỚP ĐỐI TƯỢNG
+# - 3 LỚP TRÁI: 0: ot_do (Ớt chín đỏ), 1: ot_xanh (Ớt non xanh), 2: ot_hong (Ớt thối/hỏng)
+# - 3 LỚP LÁ  : 3: la_xanh (Lá xanh khỏe), 4: la_heo (Lá héo rũ), 5: la_benh (Lá bệnh/vàng)
+# ĐẦU RA: File trọng số mô hình chili_yolov8.pt nạp trực tiếp cho Camera trực tiếp
+# ======================================================================================
+
 import os
 import shutil
 import glob
@@ -5,6 +14,7 @@ import cv2
 from ultralytics import YOLO
 
 def train():
+    # --- BƯỚC 1: XÁC ĐỊNH ĐƯỜNG DẪN TẬP DỮ LIỆU DATASET ---
     base_dir = os.path.dirname(os.path.abspath(__file__))
     dataset_dir = os.path.join(base_dir, "dataset")
     yaml_path = os.path.join(dataset_dir, "data.yaml")
@@ -64,13 +74,19 @@ names:
 
     print(f"Bắt đầu huấn luyện mô hình YOLOv8 trên {len(train_lbl_files)} ảnh có nhãn...")
     
+    # --- BƯỚC 2: KHỞI TẠO MẠNG NƠ-RON DEEP LEARNING YOLOV8 NANO ---
     weights_path = os.path.join(base_dir, "..", "yolov8n-seg.pt")
+    if not os.path.exists(weights_path):
+        weights_path = os.path.join(base_dir, "..", "yolov8n.pt")
     if not os.path.exists(weights_path):
         weights_path = "yolov8n-seg.pt"
 
     model = YOLO(weights_path)
     
-    # Huấn luyện sâu với 25 epochs, batch=4
+    # --- BƯỚC 3: TIẾN HÀNH HUẤN LUYỆN (TRAINING PIPELINE) ---
+    # epochs=25: Huấn luyện 25 lượt qua toàn bộ tập ảnh
+    # imgsz=320: Kích thước ảnh chuẩn hóa để suy luận realtime 30 FPS
+    # batch=4: Kích thước lô dữ liệu tối ưu bộ nhớ GPU/CPU
     results = model.train(
         data=yaml_path,
         epochs=25,
@@ -82,6 +98,7 @@ names:
         exist_ok=True
     )
     
+    # --- BƯỚC 4: XUẤT VÀ SAO CHÉP TRỌNG SỐ TỐT NHẤT (chili_yolov8.pt) SANG PYTHON SERVER ---
     best_pt = os.path.join(base_dir, "runs", "chili_detector", "weights", "best.pt")
     python_dir = os.path.abspath(os.path.join(base_dir, "..", "python"))
     

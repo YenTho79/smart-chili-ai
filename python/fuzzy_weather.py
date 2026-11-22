@@ -1,3 +1,16 @@
+# ======================================================================================
+# ĐỀ TÀI: HỆ THỐNG VƯỜN ỚT THÔNG MINH - SMART CHILI AI
+# FILE: fuzzy_weather.py
+# VAI TRÒ: THUẬT TOÁN LOGIC MỜ (FUZZY LOGIC) & TÍCH HỢP DỰ BÁO THỜI TIẾT OPENWEATHER API
+# THUẬT TOÁN: HỆ SUY DIỄN MỜ MAMDANI (MAMDANI FUZZY INFERENCE SYSTEM)
+# - BIẾN ĐẦU VÀO (ANTECEDENTS):
+#     1. Độ ẩm đất (soil): very_dry (rất khô), dry (khô), moist (đủ ẩm), wet (ướt)
+#     2. Nhiệt độ khí quyển (temp): cool (mát), normal (bình thường), hot (nóng)
+#     3. Khả năng mưa (rain): low (thấp), medium (trung bình), high (cao)
+# - BIẾN ĐẦU RA (CONSEQUENT):
+#     Nhu cầu tưới (water): none (không tưới), delay (hoãn tưới), low (tưới ít), high (tưới mạnh)
+# ======================================================================================
+
 import time
 import requests
 import numpy as np
@@ -22,16 +35,19 @@ class WeatherAndFuzzyEngine:
         self._build_fuzzy()
 
     def _build_fuzzy(self):
+        """XÂY DỰNG KHÔNG GIAN BIẾN MỜ VÀ TẬP LUẬT MAMDANI"""
         if not SKFUZZY_AVAILABLE:
             self.sim = None
             return
 
         try:
+            # 1. Khởi tạo các biến ngôn ngữ
             soil = ctrl.Antecedent(np.arange(0, 101, 1), 'soil')
             temp = ctrl.Antecedent(np.arange(15, 46, 1), 'temp')
             rain = ctrl.Antecedent(np.arange(0, 101, 1), 'rain')
             water = ctrl.Consequent(np.arange(0, 101, 1), 'water')
 
+            # 2. Định nghĩa hàm liên thuộc hình thang (trapmf) và hình tam giác (trimf)
             soil['very_dry'] = fuzz.trapmf(soil.universe, [0, 0, 15, 25])
             soil['dry']      = fuzz.trimf(soil.universe, [20, 35, 50])
             soil['moist']    = fuzz.trimf(soil.universe, [45, 60, 75])
@@ -50,13 +66,14 @@ class WeatherAndFuzzyEngine:
             water['low']   = fuzz.trimf(water.universe, [50, 65, 80])
             water['high']  = fuzz.trapmf(water.universe, [75, 85, 100, 100])
 
+            # 3. TẬP LUẬT CHUYÊN GIA MỜ (MAMDANI RULES)
             rules = [
-                ctrl.Rule(soil['very_dry'], water['high']),
-                ctrl.Rule(soil['moist'] | soil['wet'], water['none']),
-                ctrl.Rule(soil['dry'] & temp['hot'] & rain['low'], water['high']),
-                ctrl.Rule(soil['dry'] & (temp['normal'] | temp['cool']) & rain['low'], water['low']),
-                ctrl.Rule(soil['dry'] & rain['medium'], water['low']),
-                ctrl.Rule(soil['dry'] & rain['high'], water['delay'])
+                ctrl.Rule(soil['very_dry'], water['high']),                           # Luật 1: Đất rất khô -> Ưu tiên tưới mạnh
+                ctrl.Rule(soil['moist'] | soil['wet'], water['none']),                # Luật 2: Đất đủ ẩm hoặc ướt -> Không tưới
+                ctrl.Rule(soil['dry'] & temp['hot'] & rain['low'], water['high']),    # Luật 3: Đất khô + trời nóng + ít mưa -> Tưới mạnh
+                ctrl.Rule(soil['dry'] & (temp['normal'] | temp['cool']) & rain['low'], water['low']), # Luật 4: Đất khô + trời mát -> Tưới nhẹ
+                ctrl.Rule(soil['dry'] & rain['medium'], water['low']),                # Luật 5: Đất khô + khả năng mưa vừa -> Tưới ít
+                ctrl.Rule(soil['dry'] & rain['high'], water['delay'])                 # Luật 6 (Trọng tâm): Đất khô + SẮP CÓ MƯA -> HOÃN TƯỚI
             ]
             self.sim = ctrl.ControlSystemSimulation(ctrl.ControlSystem(rules))
         except Exception:
@@ -89,6 +106,12 @@ class WeatherAndFuzzyEngine:
         return self.rain_prob, self.weather_desc, self.api_valid
 
     def evaluate(self, soil_pct: float, temp_c: float, rain_delay_thresh: float = 60.0, soil_dry_thresh: float = 35.0, soil_wet_thresh: float = 65.0):
+        """
+        BƯỚC GIẢI MỜ (DEFUZZIFICATION) & SUY DIỄN QUYẾT ĐỊNH TƯỚI
+        - Nạp các thông số thực tế vào các Antecedent mờ
+        - Kích hoạt suy diễn luật mờ qua bộ mô phỏng ControlSystemSimulation
+        - Nhận giá trị điểm nhu cầu tưới defuzzified (score: 0 - 100)
+        """
         rain_prob, desc, valid = self.get_weather()
         effective_rain = rain_prob if valid else 0.0
 
@@ -107,12 +130,12 @@ class WeatherAndFuzzyEngine:
                 self.sim.input['soil'] = np.clip(soil_pct, 0, 100)
                 self.sim.input['temp'] = np.clip(temp_c, 15, 45)
                 self.sim.input['rain'] = np.clip(effective_rain, 0, 100)
-                self.sim.compute()
+                self.sim.compute() # Thực thi giải mờ tính toán trọng tâm (Centroid Defuzzification)
                 score = float(self.sim.output.get('water', 0.0))
             except Exception:
                 score = 0.0 if soil_pct >= soil_wet_thresh else (80.0 if soil_pct < soil_dry_thresh else 40.0)
 
-        # Đánh giá kết hợp ngưỡng tùy chỉnh người dùng và mô hình Fuzzy
+        # PHÂN CẤP QUYẾT ĐỊNH ĐIỀU KHIỂN BƠM (ACTUATOR COMMAND)
         if soil_pct >= soil_wet_thresh:
             decision = f"KHÔNG TƯỚI (Đất đủ ẩm {soil_pct}% >= {soil_wet_thresh}%)"
             pump_cmd, pump_spd = False, 0

@@ -1,3 +1,17 @@
+# ======================================================================================
+# ĐỀ TÀI: HỆ THỐNG VƯỜN ỚT THÔNG MINH - SMART CHILI AI
+# FILE: plant_vision.py
+# VAI TRÒ: THỊ GIÁC MÁY TÍNH AI (COMPUTER VISION) CHẠY TRỰC TIẾP TRÊN CAMERA 30 FPS
+# - CÔNG NGHỆ: SUY LUẬN YOLOV8 + PHÂN ĐOẠN ĐỐI TƯỢNG (INSTANCE SEGMENTATION) + ĐO TÁN XANH
+# - ĐỐI TƯỢNG NHẬN DIỆN (6 CLASSES):
+#     0: ot_do    (Quả ớt chín đỏ)
+#     1: ot_xanh  (Quả ớt non xanh)
+#     2: ot_hong  (Quả ớt thối / hỏng)
+#     3: la_xanh  (Lá xanh khỏe mạnh)
+#     4: la_heo   (Lá héo rũ - cảnh báo thiếu nước)
+#     5: la_benh  (Lá đốm bệnh / vàng lá)
+# ======================================================================================
+
 import cv2
 import numpy as np
 import os

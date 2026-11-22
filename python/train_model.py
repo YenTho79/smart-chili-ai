@@ -1,3 +1,22 @@
+# ======================================================================================
+# ĐỀ TÀI: HỆ THỐNG VƯỜN ỚT THÔNG MINH - SMART CHILI AI
+# FILE: train_model.py
+# VAI TRÒ: HUẤN LUYỆN MACHINE LEARNING (CÂY QUYẾT ĐỊNH & RANDOM FOREST)
+# - ĐÁP ỨNG CHUẨN RUBRIC BÀI LAB TRƯỜNG: Dự đoán hành vi tưới nước từ 5 thông số
+# - BIẾN ĐẦU VÀO (FEATURES):
+#     1. soil_pct: Độ ẩm đất (%)
+#     2. temp: Nhiệt độ khí quyển (°C)
+#     3. hum: Độ ẩm không khí (%)
+#     4. lux: Cường độ ánh sáng (Lux)
+#     5. rain_prob: Xác suất mưa từ API thời tiết (%)
+# - BIẾN MỤC TIÊU (ACTION / TARGET):
+#     0: Không tưới | 1: Hoãn tưới (chờ mưa) | 2: Tưới nước
+# - ĐẦU RA:
+#     smart_garden_tree.joblib : File mô hình nạp cho server.py
+#     confusion_matrix.png     : Ảnh ma trận nhầm lẫn để chèn vào báo cáo
+#     decision_tree.png        : Ảnh sơ đồ cây quyết định để chèn vào báo cáo
+# ======================================================================================
+
 import os
 import joblib
 import numpy as np
@@ -44,6 +63,7 @@ def generate_sample_dataset(n_samples=600):
     return df
 
 def train():
+    # --- BƯỚC 1: ĐỌC DỮ LIỆU ĐA BIẾN TỪ FILE CSV ---
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
     else:
@@ -53,9 +73,10 @@ def train():
     X = df[features]
     y = df["action"]
 
+    # --- BƯỚC 2: PHÂN CHIA TẬP HUẤN LUYỆN (80%) VÀ TẬP KIỂM THỬ (20%) ---
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Huấn luyện Random Forest (theo đề xuất mục 2.1)
+    # --- BƯỚC 3: HUẤN LUYỆN THUẬT TOÁN HỌC MÁY RANDOM FOREST ---
     rf_model = RandomForestClassifier(n_estimators=100, max_depth=6, random_state=42)
     rf_model.fit(X_train, y_train)
     y_pred = rf_model.predict(X_test)
@@ -63,11 +84,11 @@ def train():
     print("\n=== BÁO CÁO ĐÁNH GIÁ MÔ HÌNH ===")
     print(classification_report(y_test, y_pred, target_names=["Không tưới", "Hoãn tưới", "Tưới"]))
 
-    # Lưu mô hình
+    # --- BƯỚC 4: LƯU MÔ HÌNH VÀO FILE .joblib ĐỂ NẠP CHO SERVER ---
     joblib.dump(rf_model, MODEL_FILE)
     print(f"[OK] Đã lưu mô hình vào {MODEL_FILE}")
 
-    # 1. Xuất ảnh Confusion Matrix
+    # --- BƯỚC 5: XUẤT ẢNH MA TRẬN NHẦM LẪN (CONFUSION MATRIX) BÁO CÁO ---
     cm = confusion_matrix(y_test, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Khong tuoi", "Hoan tuoi", "Tuoi"])
     disp.plot(cmap="Blues")
@@ -76,7 +97,7 @@ def train():
     plt.savefig("confusion_matrix.png", dpi=150)
     plt.close()
 
-    # 2. Xuất ảnh minh họa Decision Tree
+    # --- BƯỚC 6: XUẤT ẢNH MINH HỌA SƠ ĐỒ CÂY QUYẾT ĐỊNH (DECISION TREE) BÁO CÁO ---
     dt_vis = DecisionTreeClassifier(max_depth=3, random_state=42).fit(X_train, y_train)
     plt.figure(figsize=(14, 7))
     plot_tree(dt_vis, feature_names=features, class_names=["Khong tuoi", "Hoan tuoi", "Tuoi"], filled=True, rounded=True)
