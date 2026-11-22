@@ -12,7 +12,10 @@ ENV/
 python/storage/*.jpg
 !python/storage/latest.jpg
 python/storage/crops/
-cay ot/captured_images/
+cay ot/captured_images/*
+!cay ot/captured_images/*.jpg
+!cay ot/captured_images/*.jpeg
+!cay ot/captured_images/*.png
 cay ot/runs/
 runs/
 
