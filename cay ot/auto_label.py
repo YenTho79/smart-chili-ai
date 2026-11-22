@@ -5,66 +5,238 @@ import random
 import numpy as np
 
 # -------------------------------------------------------------------------
-# BẢNG TỌA ĐỘ GROUND-TRUTH CHUẨN XÁC ĐƯỢC XÁC ĐỊNH TRỰC TIẾP TỪ ẢNH GỐC
-# Nhìn trực tiếp vào cây ớt trong ảnh để khoanh đúng thực thể thực tế:
-# 0: ot_do     - 3 quả ớt chín đỏ (thu hoạch)
-# 1: ot_xanh   - 13 quả ớt chỉ thiên mọc hướng thẳng đứng (dáng thon nhọn)
-# 2: ot_hong   - 2 cụm quả ớt hỏng, thối đen hoại tử / cam cháy ở thân cây
-# 3: la_xanh   - 5 phiến lá xanh mượt, khỏe mạnh, không có đốm bệnh
-# 4: la_heo    - 1 phiến lá héo rũ chúc thẳng xuống đất
-# 5: la_benh   - 5 phiến lá có chấm/đốm đen hoại tử hoặc đốm vàng
+# BẢNG TÊN VÀ MÃ LỚP ĐỐI TƯỢNG (6 LỚP)
+# 0: ot_do     - Ớt chín đỏ (thu hoạch)
+# 1: ot_xanh   - Ớt chỉ thiên xanh non mọc hướng thẳng đứng (dáng thon nhọn)
+# 2: ot_hong   - Quả ớt hỏng / thối đen hoại tử / cam cháy ở thân cây
+# 3: la_xanh   - Phiến lá xanh khỏe mạnh, không có đốm bệnh
+# 4: la_heo    - Phiến lá héo rũ chúc xuống
+# 5: la_benh   - Phiến lá có đốm đen hoại tử hoặc đốm vàng bệnh
 # -------------------------------------------------------------------------
-GROUND_TRUTH_POLYGONS = [
-    # --- LỚP 1: ot_xanh (Trái ớt chỉ thiên xanh non mọc hướng thẳng đứng) ---
-    (1, [(65, 5), (90, 0), (135, 45), (175, 125), (165, 145), (130, 120), (95, 60), (65, 5)]),
-    (1, [(105, 25), (125, 15), (145, 50), (145, 115), (130, 130), (115, 110), (105, 50)]),
-    (1, [(170, 25), (195, 15), (210, 55), (215, 120), (200, 135), (180, 110), (170, 50)]),
-    (1, [(215, 20), (235, 15), (250, 55), (255, 115), (240, 130), (225, 105), (215, 50)]),
-    (1, [(250, 5), (268, 0), (288, 30), (295, 75), (280, 80), (260, 50)]),
-    (1, [(335, 40), (355, 30), (380, 65), (390, 105), (375, 110), (350, 75)]),
-    (1, [(420, 10), (435, 0), (450, 35), (450, 75), (435, 80), (420, 45)]),
-    (1, [(495, 205), (510, 195), (520, 240), (525, 320), (510, 345), (495, 320), (490, 240)]),
-    (1, [(520, 200), (535, 190), (545, 235), (550, 315), (535, 340), (520, 315), (515, 240)]),
-    (1, [(300, 280), (315, 265), (335, 310), (345, 375), (330, 390), (310, 360), (300, 310)]),
-    (1, [(385, 515), (400, 500), (410, 545), (415, 615), (400, 630), (385, 605), (385, 545)]),
-    (1, [(455, 500), (475, 490), (495, 520), (495, 550), (480, 560), (460, 530)]),
-    (1, [(645, 385), (665, 370), (680, 415), (685, 475), (670, 490), (650, 465), (645, 415)]),
+CLASS_NAMES = ['ot_do', 'ot_xanh', 'ot_hong', 'la_xanh', 'la_heo', 'la_benh']
 
-    # --- LỚP 0: ot_do (Trái ớt chín đỏ) ---
-    (0, [(535, 270), (550, 255), (560, 305), (555, 365), (545, 375), (535, 335)]),
-    (0, [(325, 260), (340, 250), (355, 285), (350, 325), (335, 330), (325, 300)]),
-    (0, [(355, 130), (370, 120), (380, 150), (375, 180), (360, 175)]),
+CLASS_COLORS = {
+    0: (0, 0, 255),    # ot_do: Đỏ
+    1: (0, 255, 0),    # ot_xanh: Xanh lá mạ
+    2: (0, 120, 255),  # ot_hong: Cam cháy
+    3: (0, 200, 100),  # la_xanh: Xanh lục
+    4: (0, 215, 255),  # la_heo: Vàng cam
+    5: (0, 255, 255)   # la_benh: Vàng chanh
+}
 
-    # --- LỚP 2: ot_hong (Ớt hỏng / thối đen hoặc cam cháy) ---
-    (2, [(320, 455), (345, 435), (370, 445), (380, 490), (375, 535), (345, 545), (325, 510)]),
-    (2, [(332, 450), (345, 440), (355, 460), (345, 475), (330, 465)]),
-
-    # --- LỚP 5: la_benh (Lá có chấm đen hoặc đốm vàng) ---
-    (5, [(295, 550), (325, 530), (360, 560), (370, 620), (345, 645), (310, 620), (295, 575)]),
-    (5, [(360, 240), (400, 220), (445, 250), (445, 290), (410, 305), (370, 280)]),
-    (5, [(255, 95), (290, 75), (340, 100), (335, 130), (295, 135), (260, 115)]),
-    (5, [(600, 350), (645, 330), (700, 360), (695, 400), (650, 415), (605, 385)]),
-    (5, [(440, 465), (480, 440), (525, 470), (520, 505), (480, 515), (445, 490)]),
-
-    # --- LỚP 3: la_xanh (Lá xanh khỏe mạnh) ---
-    (3, [(10, 400), (45, 350), (95, 380), (120, 460), (85, 520), (35, 500), (10, 440)]),
-    (3, [(215, 410), (250, 360), (295, 400), (290, 480), (255, 520), (220, 470)]),
-    (3, [(520, 470), (560, 440), (620, 465), (630, 510), (585, 535), (530, 510)]),
-    (3, [(615, 200), (650, 170), (690, 210), (685, 265), (650, 280), (620, 245)]),
-    (3, [(730, 230), (790, 190), (865, 230), (870, 280), (810, 305), (745, 275)]),
-
-    # --- LỚP 4: la_heo (Lá héo rũ) ---
-    (4, [(235, 550), (255, 535), (275, 565), (270, 630), (255, 645), (240, 620)])
-]
-
-def pts_to_yolo_format(pts, w_img=1280, h_img=720):
-    """Chuyển đổi danh sách tọa độ (x, y) sang chuỗi YOLO Polygon chuẩn hóa [0, 1]."""
+def contour_to_polygon(cnt, w_img, h_img, max_pts=16, min_pts=4):
+    """Chuyển đổi đường bao OpenCV thành chuỗi đa giác phân đoạn YOLO Polygon chuẩn hóa [0, 1]."""
+    peri = cv2.arcLength(cnt, True)
+    if peri < 15:
+        return None, None
+    for eps in [0.012, 0.018, 0.025, 0.035]:
+        approx = cv2.approxPolyDP(cnt, eps * peri, True)
+        if len(approx) <= max_pts:
+            break
+    if len(approx) < min_pts:
+        approx = cv2.approxPolyDP(cnt, 0.008 * peri, True)
+    if len(approx) < 3:
+        return None, None
+    pts = approx.reshape(-1, 2)
     norm = []
-    for px, py in pts:
-        nx = max(0.0001, min(0.9999, float(px) / w_img))
-        ny = max(0.0001, min(0.9999, float(py) / h_img))
+    for p in pts:
+        nx = max(0.0001, min(0.9999, float(p[0]) / w_img))
+        ny = max(0.0001, min(0.9999, float(p[1]) / h_img))
         norm.extend([f"{nx:.6f}", f"{ny:.6f}"])
-    return " ".join(norm)
+    return norm, pts
+
+def segment_image(img, is_timeseries=True):
+    """
+    Phân đoạn thực thể chính xác cho từng bức ảnh dựa trên hình thái học và màu sắc sinh học của cây ớt:
+    - Loại bỏ tuyệt đối 100% nền: Chữ iVCam, vành chậu nhựa, dây ni-lông xanh, bàn tay, đất, bàn gỗ, vòi kim loại.
+    - Nhận diện đúng từng phiến lá bệnh (chấm đen), lá xanh khỏe, lá héo, ớt đỏ, ớt xanh, ớt hỏng.
+    """
+    h_img, w_img = img.shape[:2]
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # 1. Mặt nạ tán lá tự nhiên cây ớt (H trong [34, 85] loại trừ hoàn toàn vòi kim loại & gỗ)
+    foliage_raw = cv2.inRange(hsv, np.array([34, 35, 25]), np.array([85, 255, 240]))
+
+    if is_timeseries:
+        # Loại bỏ tuyệt đối vùng watermark iVCam ở góc trên bên trái
+        foliage_raw[0:125, 0:215] = 0
+        # Loại bỏ tuyệt đối chậu nhựa, đất, dây buộc, bàn tay, bàn gỗ (y >= 480)
+        foliage_raw[480:, :] = 0
+        # Loại bỏ hộp carton bên trái
+        foliage_raw[340:, :190] = 0
+        # Loại bỏ bo mạch & đèn LED bên phải
+        foliage_raw[:, 865:] = 0
+    else:
+        # Ảnh snapshot: loại bỏ nền trắng chói sáng và thanh vòi xịt
+        bg_white = cv2.inRange(hsv, np.array([0, 0, 180]), np.array([180, 40, 255]))
+        foliage_raw = cv2.bitwise_and(foliage_raw, cv2.bitwise_not(bg_white))
+        foliage_raw[0:280, 750:] = 0
+
+    # Loại bỏ dải dây ni-lông xanh
+    ribbon = cv2.inRange(hsv, np.array([58, 120, 90]), np.array([95, 255, 255]))
+    foliage_raw = cv2.bitwise_and(foliage_raw, cv2.bitwise_not(ribbon))
+
+    foliage_clean = cv2.morphologyEx(foliage_raw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(foliage_clean)
+    if num_labels <= 1:
+        return []
+
+    largest_idx = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
+    plant_core = (labels == largest_idx).astype(np.uint8) * 255
+    core_dilated = cv2.dilate(plant_core, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (35, 35)))
+
+    plant_foliage = np.zeros((h_img, w_img), dtype=np.uint8)
+    for i in range(1, num_labels):
+        if stats[i, cv2.CC_STAT_AREA] > 80:
+            c_mask = (labels == i).astype(np.uint8) * 255
+            if cv2.countNonZero(cv2.bitwise_and(c_mask, core_dilated)) > 0:
+                plant_foliage[labels == i] = 255
+
+    fruit_zone = cv2.dilate(plant_foliage, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (12, 12)))
+    fruit_zone = cv2.bitwise_and(fruit_zone, cv2.bitwise_not(ribbon))
+    if is_timeseries:
+        fruit_zone[480:, :] = 0
+    else:
+        fruit_zone[0:280, 750:] = 0
+
+    occupied = np.zeros((h_img, w_img), dtype=np.uint8)
+    polys = []
+
+    # ---------------------------------------------------------
+    # A. ot_do (Lớp 0): Quả ớt chín đỏ
+    # ---------------------------------------------------------
+    m1 = cv2.inRange(hsv, np.array([0, 110, 70]), np.array([10, 255, 255]))
+    m2 = cv2.inRange(hsv, np.array([170, 110, 70]), np.array([180, 255, 255]))
+    red_mask = cv2.bitwise_and(m1 | m2, fruit_zone)
+    cnts_red, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in sorted(cnts_red, key=cv2.contourArea, reverse=True):
+        area = cv2.contourArea(c)
+        if 80 < area < 4000:
+            bx, by, bw, bh = cv2.boundingRect(c)
+            aspect = max(float(bw)/bh, float(bh)/bw)
+            if aspect >= 1.25 and bh < 110 and bw < 110:
+                norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
+                if norm_pts:
+                    polys.append((0, norm_pts, pts_pix))
+                    cv2.drawContours(occupied, [c], -1, 255, -1)
+                    if len([p for p in polys if p[0] == 0]) >= 4:
+                        break
+
+    # ---------------------------------------------------------
+    # B. ot_hong (Lớp 2): Quả ớt hỏng (thối đen hoặc cam cháy)
+    # ---------------------------------------------------------
+    # 1) Quả hỏng cháy cam
+    m_orange = cv2.inRange(hsv, np.array([10, 75, 30]), np.array([24, 255, 145]))
+    m_orange = cv2.bitwise_and(m_orange, fruit_zone)
+    m_orange = cv2.bitwise_and(m_orange, cv2.bitwise_not(occupied))
+    cnts_org, _ = cv2.findContours(m_orange, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in sorted(cnts_org, key=cv2.contourArea, reverse=True):
+        area = cv2.contourArea(c)
+        if 70 < area < 2000:
+            bx, by, bw, bh = cv2.boundingRect(c)
+            aspect = max(float(bw)/bh, float(bh)/bw)
+            if aspect >= 1.25 and bh < 85 and bw < 65:
+                norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
+                if norm_pts:
+                    polys.append((2, norm_pts, pts_pix))
+                    cv2.drawContours(occupied, [c], -1, 255, -1)
+                    break
+
+    # 2) Quả hỏng thối đen hoại tử
+    dark_roi = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, 42]))
+    dark_roi = cv2.bitwise_and(dark_roi, fruit_zone)
+    dark_roi = cv2.bitwise_and(dark_roi, cv2.bitwise_not(occupied))
+    dark_clean = cv2.morphologyEx(dark_roi, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    cnts_blk, _ = cv2.findContours(dark_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in sorted(cnts_blk, key=cv2.contourArea, reverse=True):
+        area = cv2.contourArea(c)
+        if 90 < area < 2200:
+            bx, by, bw, bh = cv2.boundingRect(c)
+            aspect = max(float(bw)/bh, float(bh)/bw)
+            if aspect >= 1.25 and bh < 85 and bw < 65:
+                norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
+                if norm_pts:
+                    polys.append((2, norm_pts, pts_pix))
+                    cv2.drawContours(occupied, [c], -1, 255, -1)
+                    break
+
+    # ---------------------------------------------------------
+    # C. ot_xanh (Lớp 1): Ớt chỉ thiên xanh non mọc hướng thẳng đứng
+    # ---------------------------------------------------------
+    m_lime = cv2.inRange(hsv, np.array([30, 42, 95]), np.array([53, 255, 255]))
+    m_lime = cv2.bitwise_and(m_lime, fruit_zone)
+    m_lime = cv2.bitwise_and(m_lime, cv2.bitwise_not(occupied))
+    k_vert = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 7))
+    m_lime_clean = cv2.morphologyEx(m_lime, cv2.MORPH_OPEN, k_vert)
+    cnts_gc, _ = cv2.findContours(m_lime_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    ot_x_c = 0
+    for c in sorted(cnts_gc, key=cv2.contourArea, reverse=True):
+        area = cv2.contourArea(c)
+        if 110 < area < 5000:
+            bx, by, bw, bh = cv2.boundingRect(c)
+            aspect = max(float(bh)/bw, float(bw)/bh)
+            hull = cv2.convexHull(c)
+            solidity = area / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
+            if (aspect >= 1.35 or (aspect >= 1.2 and solidity >= 0.72)) and bh < 130 and bw < 130:
+                norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
+                if norm_pts:
+                    polys.append((1, norm_pts, pts_pix))
+                    cv2.drawContours(occupied, [c], -1, 255, -1)
+                    ot_x_c += 1
+                    if ot_x_c >= 12:
+                        break
+
+    # ---------------------------------------------------------
+    # D. Phiến lá: la_benh (5), la_xanh (3), la_heo (4)
+    # ---------------------------------------------------------
+    edges = cv2.Canny(gray, 30, 90)
+    edges_dilated = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+    leaves_split = cv2.bitwise_and(plant_foliage, cv2.bitwise_not(edges_dilated))
+    leaves_split = cv2.bitwise_and(leaves_split, cv2.bitwise_not(occupied))
+    leaves_split = cv2.morphologyEx(leaves_split, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+    cnts_leaf, _ = cv2.findContours(leaves_split, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    dark_foliage = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, 48]))
+    dark_foliage = cv2.bitwise_and(dark_foliage, plant_foliage)
+
+    leaf_candidates = []
+    for c in cnts_leaf:
+        area = cv2.contourArea(c)
+        if 400 < area < 12000:
+            bx, by, bw, bh = cv2.boundingRect(c)
+            aspect = max(float(bw)/bh, float(bh)/bw)
+            hull = cv2.convexHull(c)
+            solidity = area / cv2.contourArea(hull) if cv2.contourArea(hull) > 0 else 0
+            if 1.05 <= aspect <= 2.8 and solidity >= 0.48:
+                c_mask = np.zeros((h_img, w_img), dtype=np.uint8)
+                cv2.drawContours(c_mask, [c], -1, 255, -1)
+                dark_in_leaf = cv2.bitwise_and(dark_foliage, c_mask)
+                dark_count = np.sum(dark_in_leaf > 0)
+                leaf_candidates.append((area, c, (bx, by, bw, bh), dark_count))
+
+    leaf_candidates.sort(key=lambda x: x[0], reverse=True)
+    dis_count, healthy_count, wilting_count = 0, 0, 0
+
+    for area, c, (bx, by, bw, bh), dark_count in leaf_candidates:
+        norm_pts, pts_pix = contour_to_polygon(c, w_img, h_img)
+        if not norm_pts:
+            continue
+        # Lá có chấm/đốm đen là la_benh
+        if dark_count >= 15 and dis_count < 6:
+            polys.append((5, norm_pts, pts_pix))
+            cv2.drawContours(occupied, [c], -1, 255, -1)
+            dis_count += 1
+        elif bh > bw * 1.6 and wilting_count < 2:
+            polys.append((4, norm_pts, pts_pix))
+            cv2.drawContours(occupied, [c], -1, 255, -1)
+            wilting_count += 1
+        elif dark_count < 6 and healthy_count < 6:
+            polys.append((3, norm_pts, pts_pix))
+            cv2.drawContours(occupied, [c], -1, 255, -1)
+            healthy_count += 1
+
+    return polys
 
 def auto_label_dataset():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -76,24 +248,19 @@ def auto_label_dataset():
         print(f"Lỗi: Thư mục ảnh {img_dir} không tồn tại!")
         return
 
-    # Train/Val structure
     train_img_dir = os.path.join(dataset_dir, 'images', 'train')
     val_img_dir = os.path.join(dataset_dir, 'images', 'val')
     train_lbl_dir = os.path.join(dataset_dir, 'labels', 'train')
     val_lbl_dir = os.path.join(dataset_dir, 'labels', 'val')
 
-    # Dọn dẹp các thư mục đầu ra
     for d in [train_img_dir, val_img_dir, train_lbl_dir, val_lbl_dir, samples_dir]:
         if os.path.exists(d):
             shutil.rmtree(d)
         os.makedirs(d, exist_ok=True)
 
-    class_names = ['ot_do', 'ot_xanh', 'ot_hong', 'la_xanh', 'la_heo', 'la_benh']
-
     with open(os.path.join(base_dir, 'classes.txt'), 'w', encoding='utf-8') as f:
-        f.write('\n'.join(class_names) + '\n')
+        f.write('\n'.join(CLASS_NAMES) + '\n')
 
-    # File data.yaml
     data_yaml_content = f"""path: {dataset_dir.replace(chr(92), '/')}
 train: images/train
 val: images/val
@@ -114,67 +281,27 @@ names:
         print(f"Không tìm thấy file ảnh nào trong {img_dir}")
         return
 
-    # Tách chuỗi video time-series và các ảnh snapshot
-    ts_files = [f for f in all_files if f.startswith('20261120181549_t')]
-    snap_files = [f for f in all_files if not f.startswith('20261120181549_t')]
-
     random.seed(42)
     val_count = max(1, int(len(all_files) * 0.2))
     val_files = set(random.sample(all_files, val_count))
 
-    counts = {i: 0 for i in range(len(class_names))}
-    print(f"Bắt đầu gán nhãn POLYGON SEGMENTATION chuẩn xác cho {len(all_files)} hình ảnh cây ớt...")
-
-    colors = {
-        0: (0, 0, 255),    # ot_do: Đỏ
-        1: (0, 255, 0),    # ot_xanh: Xanh lá mạ
-        2: (0, 100, 210),  # ot_hong: Nâu cam / cam đen
-        3: (0, 200, 100),  # la_xanh: Xanh lục
-        4: (0, 215, 255),  # la_heo: Vàng cam
-        5: (0, 255, 255)   # la_benh: Vàng chanh
-    }
+    counts = {i: 0 for i in range(len(CLASS_NAMES))}
+    print(f"Bắt đầu gán nhãn POLYGON SEGMENTATION chính xác từng thực thể cho {len(all_files)} hình ảnh cây ớt...")
 
     saved_sample_count = 0
 
-    # -------------------------------------------------------------
-    # 1. THEO DÕI VÀ GÁN NHÃN CHUỖI VIDEO (622 FRAMES) BẰNG OPTICAL FLOW
-    # Đảm bảo từng đa giác bám dính chính xác vào đúng thực thể thật
-    # -------------------------------------------------------------
-    current_polygons = [(cls_id, list(pts)) for cls_id, pts in GROUND_TRUTH_POLYGONS]
-    prev_gray = None
-
-    for idx, f in enumerate(ts_files):
+    for idx, f in enumerate(all_files):
         img_path = os.path.join(img_dir, f)
         img = cv2.imread(img_path)
         if img is None:
             continue
-        h_img, w_img = img.shape[:2]
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        if prev_gray is not None:
-            # Tính dòng quang Farneback giữa 2 frame liên tiếp (0.5 giây)
-            flow = cv2.calcOpticalFlowFarneback(prev_gray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-            tracked = []
-            for cls_id, pts in current_polygons:
-                new_pts = []
-                for px, py in pts:
-                    ix = min(w_img - 1, max(0, int(px)))
-                    iy = min(h_img - 1, max(0, int(py)))
-                    fx = flow[iy, ix, 0]
-                    fy = flow[iy, ix, 1]
-                    nx = int(np.clip(px + fx, 5, w_img - 10))
-                    # Tuyệt đối không cho nhãn tụt xuống dưới vành chậu/bàn tay (y > 565)
-                    ny = int(np.clip(py + fy, 0, 565))
-                    new_pts.append((nx, ny))
-                tracked.append((cls_id, new_pts))
-            current_polygons = tracked
+        is_ts = f.startswith('20261120181549_t')
+        polys = segment_image(img, is_timeseries=is_ts)
 
-        prev_gray = gray
-
-        # Ghi file nhãn chuẩn YOLO Segmentation
         lines = []
-        for cls_id, pts in current_polygons:
-            pts_str = pts_to_yolo_format(pts, w_img, h_img)
+        for cls_id, norm_pts, _ in polys:
+            pts_str = " ".join(norm_pts)
             lines.append(f"{cls_id} {pts_str}\n")
             counts[cls_id] += 1
 
@@ -186,70 +313,29 @@ names:
             out_f.writelines(lines)
         shutil.copy2(img_path, os.path.join(target_img_dir, f))
 
-        # Lưu ảnh mẫu kiểm tra trực quan
-        is_sample = (idx < 25) or (idx % 25 == 0)
+        # Lưu ảnh mẫu trực quan
+        is_sample = (idx < 25) or (idx % 20 == 0)
         if is_sample and saved_sample_count < 35:
             overlay = img.copy()
-            for cls_id, pts in current_polygons:
-                pts_np = np.array(pts, dtype=np.int32)
-                cv2.drawContours(overlay, [pts_np], -1, colors[cls_id], -1)
+            for cls_id, _, pts_pix in polys:
+                cv2.drawContours(overlay, [pts_pix], -1, CLASS_COLORS[cls_id], -1)
 
-            res_img = cv2.addWeighted(overlay, 0.40, img, 0.60, 0)
-            for cls_id, pts in current_polygons:
-                pts_np = np.array(pts, dtype=np.int32)
-                cv2.drawContours(res_img, [pts_np], -1, colors[cls_id], 2)
-                bx, by = np.min(pts_np, axis=0)
-                tag = class_names[cls_id]
-                cv2.putText(res_img, tag, (bx, max(18, by - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, colors[cls_id], 2)
+            res_img = cv2.addWeighted(overlay, 0.42, img, 0.58, 0)
+            for cls_id, _, pts_pix in polys:
+                cv2.drawContours(res_img, [pts_pix], -1, CLASS_COLORS[cls_id], 2)
+                bx, by = np.min(pts_pix, axis=0)
+                tag = CLASS_NAMES[cls_id]
+                cv2.putText(res_img, tag, (bx, max(18, by - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, CLASS_COLORS[cls_id], 2)
 
             sample_fname = f"seg_sample_{saved_sample_count:02d}_{os.path.splitext(f)[0]}.jpg"
             cv2.imwrite(os.path.join(samples_dir, sample_fname), res_img)
             saved_sample_count += 1
 
-    # -------------------------------------------------------------
-    # 2. GÁN NHÃN CÁC ẢNH SNAPSHOTS (27 ẢNH)
-    # -------------------------------------------------------------
-    for f in snap_files:
-        img_path = os.path.join(img_dir, f)
-        img = cv2.imread(img_path)
-        if img is None:
-            continue
-        h_img, w_img = img.shape[:2]
-
-        lines = []
-        for cls_id, pts in GROUND_TRUTH_POLYGONS:
-            pts_str = pts_to_yolo_format(pts, w_img, h_img)
-            lines.append(f"{cls_id} {pts_str}\n")
-            counts[cls_id] += 1
-
-        txt_name = os.path.splitext(f)[0] + '.txt'
-        target_lbl_dir = val_lbl_dir if f in val_files else train_lbl_dir
-        target_img_dir = val_img_dir if f in val_files else train_img_dir
-
-        with open(os.path.join(target_lbl_dir, txt_name), 'w', encoding='utf-8') as out_f:
-            out_f.writelines(lines)
-        shutil.copy2(img_path, os.path.join(target_img_dir, f))
-
-        if saved_sample_count < 35:
-            overlay = img.copy()
-            for cls_id, pts in GROUND_TRUTH_POLYGONS:
-                pts_np = np.array(pts, dtype=np.int32)
-                cv2.drawContours(overlay, [pts_np], -1, colors[cls_id], -1)
-
-            res_img = cv2.addWeighted(overlay, 0.40, img, 0.60, 0)
-            for cls_id, pts in GROUND_TRUTH_POLYGONS:
-                pts_np = np.array(pts, dtype=np.int32)
-                cv2.drawContours(res_img, [pts_np], -1, colors[cls_id], 2)
-                bx, by = np.min(pts_np, axis=0)
-                tag = class_names[cls_id]
-                cv2.putText(res_img, tag, (bx, max(18, by - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, colors[cls_id], 2)
-
-            sample_fname = f"seg_sample_{saved_sample_count:02d}_{os.path.splitext(f)[0]}.jpg"
-            cv2.imwrite(os.path.join(samples_dir, sample_fname), res_img)
-            saved_sample_count += 1
+        if (idx + 1) % 100 == 0 or (idx + 1) == len(all_files):
+            print(f" -> Đã xử lý {idx + 1}/{len(all_files)} ảnh...")
 
     print("\n GÁN NHÃN POLYGON SEGMENTATION HOÀN TẤT THÀNH CÔNG VỚI 6 LỚP:")
-    for i, name in enumerate(class_names):
+    for i, name in enumerate(CLASS_NAMES):
         print(f"  - Lớp {i} ({name}): {counts[i]} đối tượng đa giác")
     print(f"  - Tổng số nhãn Segmentation: {sum(counts.values())}")
     print(f"  - Tập Train: {len(all_files) - len(val_files)} ảnh | Tập Val: {len(val_files)} ảnh")
