@@ -23,7 +23,13 @@ runs/
 yolov8n.pt
 yolov8n-seg.pt
 cay ot/yolov8n.pt
+cay ot/yolov8n-seg.pt
 python/chili_yolov8_backup.pt
+
+# Generated dataset images & visualization samples (canonical images are in cay ot/captured_images/)
+cay ot/dataset/images/
+cay ot/labeled_samples/
+cay ot/test_runs/
 
 # Dataset label caches
 *.cache

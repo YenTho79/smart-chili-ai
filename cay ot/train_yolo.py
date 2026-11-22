@@ -8,6 +8,23 @@ def train():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     dataset_dir = os.path.join(base_dir, "dataset")
     yaml_path = os.path.join(dataset_dir, "data.yaml")
+
+    # Đảm bảo đường dẫn trong data.yaml luôn chuẩn trên mọi máy
+    norm_dataset_dir = dataset_dir.replace("\\", "/")
+    data_yaml_content = f"""path: {norm_dataset_dir}
+train: images/train
+val: images/val
+
+names:
+  0: ot_do
+  1: ot_xanh
+  2: ot_hong
+  3: la_xanh
+  4: la_heo
+  5: la_benh
+"""
+    with open(yaml_path, "w", encoding="utf-8") as f:
+        f.write(data_yaml_content)
     
     train_img_dir = os.path.join(dataset_dir, "images", "train")
     train_lbl_dir = os.path.join(dataset_dir, "labels", "train")
@@ -47,9 +64,9 @@ def train():
 
     print(f"Bắt đầu huấn luyện mô hình YOLOv8 trên {len(train_lbl_files)} ảnh có nhãn...")
     
-    weights_path = os.path.join(base_dir, "..", "yolov8n.pt")
+    weights_path = os.path.join(base_dir, "..", "yolov8n-seg.pt")
     if not os.path.exists(weights_path):
-        weights_path = "yolov8n.pt"
+        weights_path = "yolov8n-seg.pt"
 
     model = YOLO(weights_path)
     

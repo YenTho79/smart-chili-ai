@@ -151,7 +151,8 @@ class PlantVisionAnalyzer:
         if self.yolo_model is not None:
             try:
                 results = self.yolo_model.predict(frame, conf=self.yolo_conf, imgsz=320, verbose=False)
-                for b in results[0].boxes:
+                has_seg_masks = hasattr(results[0], 'masks') and results[0].masks is not None
+                for idx_b, b in enumerate(results[0].boxes):
                     cls_id = int(b.cls[0])
                     conf = float(b.conf[0])
                     if cls_id not in self.CLASS_INFO:
@@ -163,24 +164,30 @@ class PlantVisionAnalyzer:
                     w, h = x2 - x1, y2 - y1
 
                     if w > 10 and h > 10:
-                        roi_hsv = hsv[y1:y2, x1:x2]
-                        # Tạo mặt nạ segmentation bên trong bbox
-                        if cls_id == 0:  # ot_do
-                            m = cv2.inRange(roi_hsv, (0, 85, 60), (12, 255, 255)) | cv2.inRange(roi_hsv, (160, 85, 60), (180, 255, 255))
-                        elif cls_id == 1:  # ot_xanh
-                            m = cv2.inRange(roi_hsv, (35, 65, 40), (85, 255, 240))
-                        elif cls_id == 2:  # ot_hong
-                            m = cv2.inRange(roi_hsv, (5, 40, 20), (25, 220, 120))
-                        elif cls_id == 5:  # la_benh
-                            m = cv2.inRange(roi_hsv, (18, 60, 70), (34, 255, 255))
-                        else:  # la_xanh hoặc la_heo
-                            m = cv2.inRange(roi_hsv, (34, 40, 35), (85, 255, 255))
+                        poly = []
+                        if has_seg_masks and idx_b < len(results[0].masks.xy):
+                            m_pts = results[0].masks.xy[idx_b]
+                            if len(m_pts) >= 3:
+                                poly = [m_pts.astype(np.int32).reshape(-1, 1, 2)]
 
-                        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                        poly = [c + np.array([[[x1, y1]]]) for c in cnts if cv2.contourArea(c) > 20]
                         if not poly:
-                            # Nếu mặt nạ nhỏ, dùng hình hộp elip nội tiếp
-                            poly = [np.array([[[x1, y1+h//2]], [[x1+w//2, y1]], [[x2, y1+h//2]], [[x1+w//2, y2]]])]
+                            roi_hsv = hsv[y1:y2, x1:x2]
+                            # Tạo mặt nạ segmentation bên trong bbox
+                            if cls_id == 0:  # ot_do
+                                m = cv2.inRange(roi_hsv, (0, 85, 60), (12, 255, 255)) | cv2.inRange(roi_hsv, (160, 85, 60), (180, 255, 255))
+                            elif cls_id == 1:  # ot_xanh (trái ớt xanh thon dài)
+                                m = cv2.inRange(roi_hsv, (34, 65, 45), (55, 255, 240))
+                            elif cls_id == 2:  # ot_hong (ớt hư héo: có màu đen hoặc cam cam)
+                                m = cv2.inRange(roi_hsv, (10, 50, 40), (26, 230, 200)) | cv2.inRange(roi_hsv, (0, 0, 10), (180, 255, 65))
+                            elif cls_id == 5:  # la_benh (lá có chấm đen hoặc đốm vàng)
+                                m = cv2.inRange(roi_hsv, (18, 60, 70), (34, 255, 255)) | cv2.inRange(roi_hsv, (0, 0, 0), (180, 255, 65))
+                            else:  # la_xanh hoặc la_heo
+                                m = cv2.inRange(roi_hsv, (36, 40, 35), (85, 255, 255))
+
+                            cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            poly = [c + np.array([[[x1, y1]]]) for c in cnts if cv2.contourArea(c) > 20]
+                            if not poly:
+                                poly = [np.array([[[x1, y1+h//2]], [[x1+w//2, y1]], [[x2, y1+h//2]], [[x1+w//2, y2]]])]
 
                         detected_objects[cls_id].append({
                             'bbox': (x1, y1, w, h),
