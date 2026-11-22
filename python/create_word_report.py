@@ -294,10 +294,17 @@ def create_full_report():
         "Bằng chứng định lượng thực tế khẳng định tính ưu việt và khả năng ứng dụng thực tiễn cao của đề tài nghiên cứu."
     )
 
-    doc.save(DOCX_OUTPUT)
+    try:
+        doc.save(DOCX_OUTPUT)
+        final_path = DOCX_OUTPUT
+    except PermissionError:
+        final_path = os.path.join(r"d:\smart-chili-ai", "BAO_CAO_MINH_CHUNG_CAU_3_VUON_OT_AI_MOI_NHAT.docx")
+        doc.save(final_path)
+        print(f"LƯU Ý: File gốc đang được mở trong Word nên đã lưu bản mới nhất tại: {final_path}")
+
     print(f"\n=======================================================")
     print(f"BÁO CÁO MINH CHỨNG HOÀN TẤT VÀ ĐÃ LƯU TẠI:")
-    print(f" -> {DOCX_OUTPUT}")
+    print(f" -> {final_path}")
     print(f"=======================================================")
 
 if __name__ == "__main__":
