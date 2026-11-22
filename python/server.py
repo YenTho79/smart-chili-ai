@@ -1,3 +1,15 @@
+# ======================================================================================
+# ĐỀ TÀI: HỆ THỐNG VƯỜN ỚT THÔNG MINH - SMART CHILI AI
+# FILE: server.py
+# VAI TRÒ: MÁY CHỦ TRUNG TÂM (FASTAPI BACKEND & ORCHESTRATOR)
+# LUỒNG HOẠT ĐỘNG 5 TẦNG:
+#   1. SENSE : Đọc chuỗi JSON cảm biến từ vi điều khiển ESP32 qua UART 115200.
+#   2. SEE   : Truyền video trực tiếp MJPEG và chạy phân tích AI YOLOv8 từ plant_vision.py.
+#   3. THINK : Chạy song song Logic mờ (fuzzy_weather.py) + Học máy (smart_garden_tree.joblib).
+#   4. ACT   : Ra lệnh điều khiển Bơm/Quạt gửi ngược lại cho ESP32 và Web Dashboard.
+#   5. LEARN : Cung cấp API cho AI Labeling Studio tự gán nhãn và re-train lại mô hình YOLOv8.
+# ======================================================================================
+
 import os
 import sys
 import json

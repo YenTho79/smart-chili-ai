@@ -1,3 +1,16 @@
+// ======================================================================================
+// ĐỀ TÀI: HỆ THỐNG VƯỜN ỚT THÔNG MINH - SMART CHILI AI
+// FILE: main.ino
+// VAI TRÒ: FIRMWARE VI ĐIỀU KHIỂN ESP32-S3 (TẦNG PHẦN CỨNG SENSE & ACT)
+// CHỨC NĂNG:
+//   1. Đọc dữ liệu từ cảm biến độ ẩm đất Analog (GPIO 7 hoặc GPIO 18).
+//   2. Đọc cảm biến nhiệt độ & độ ẩm không khí AHT20 + cảm biến ánh sáng BH1750 qua bus I2C (SDA: 8, SCL: 9).
+//   3. Hiển thị thông số và trạng thái Bơm/Quạt lên màn hình OLED SSD1306.
+//   4. Điều khiển 2 kênh động cơ qua Driver cầu H L298N (Quạt: Kênh A, Bơm: Kênh B).
+//   5. Khóa liên động an toàn phần cứng (Safety Interlocks) & ngắt khẩn cấp E-STOP qua nút BOOT (GPIO 0).
+//   6. Giao tiếp UART 115200 truyền nhận JSON với máy tính/Python Server.
+// ======================================================================================
+
 #include <Wire.h>
 #include <Adafruit_AHTX0.h>
 #include <BH1750.h>
